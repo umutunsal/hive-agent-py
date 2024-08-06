@@ -10,9 +10,6 @@ from typing import Callable, List, Any
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from llama_index.agent.openai import OpenAIAgent
-from llama_index.core.agent import FunctionCallingAgentWorker
-
 from hive_agent.llms import OpenAILLM
 from hive_agent.llms import ClaudeLLM
 from hive_agent.llms import MistralLLM
@@ -37,7 +34,7 @@ from hive_agent.tools.retriever.pinecone_retrieve import PineconeRetriever
 from llama_index.core.objects import ObjectIndex
 
 from dotenv import load_dotenv
-from hive_agent.config import Config
+from hive_agent.sdk_context import SDKContext
 
 load_dotenv()
 
@@ -51,6 +48,7 @@ class HiveAgent:
         self,
         name: str,
         functions: List[Callable],
+        sdk_context: SDKContext,
         config_path="../../hive_config_example.toml",
         host="0.0.0.0",
         port=8000,
@@ -71,16 +69,19 @@ class HiveAgent:
         self.instruction = instruction
         self.__role__ = role
         self.optional_dependencies = {}
-        self.config = Config(config_path=config_path)
+        self.sdk_context = sdk_context
+        self.config = sdk_context.get_config(name)
         self.retrieve = retrieve
         self.required_exts = required_exts
         self.retrieval_tool = retrieval_tool
         self.load_index_file = load_index_file
-        logging.basicConfig(stream=sys.stdout, level=self.config.get_log_level())
+        log_level = self.config.get("log", "INFO")
+
+        logging.basicConfig(stream=sys.stdout, level=log_level)
         logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
 
         self.logger = logging.getLogger()
-        self.logger.setLevel(self.config.get_log_level())
+        self.logger.setLevel(log_level)
 
         self._check_optional_dependencies()
         self.__setup()
@@ -160,7 +161,7 @@ class HiveAgent:
             tool_retriever = vectorstore_object.as_retriever(similarity_top_k=3)
             tools = []  # Cannot specify both tools and tool_retriever
 
-        model = self.config.get("model", "model", "gpt-3.5-turbo")
+        model = self.config.get("model", "gpt-3.5-turbo")
         if "gpt" in model:
             self.__agent = OpenAILLM(tools, self.instruction, tool_retriever).agent
         elif "claude" in model:
@@ -199,7 +200,7 @@ class HiveAgent:
 
     def configure_cors(self):
         environment = self.config.get(
-            "environment", "type"
+            "environment", "dev"
         )  # default to 'development' if not set
 
         if environment == "dev":
@@ -229,10 +230,9 @@ class HiveAgent:
         finally:
             await self.__cleanup()
 
-    def run(self):
+    async def run(self):
         try:
-            loop = asyncio.get_event_loop()
-            loop.run_until_complete(self.run_server())
+            await self.run_server()
         except Exception as e:
             logging.error(
                 f"An error occurred in the main event loop: {e}", exc_info=True
@@ -268,31 +268,33 @@ class HiveAgent:
         finally:
             logging.info("cleanup process completed")
 
-    def recreate_agent(self):
+    # def recreate_agent(self):
 
-        custom_tools = self._tools_from_funcs(self.functions)
+    #     custom_tools = self._tools_from_funcs(self.functions)
 
-        # TODO: pass db client to db tools directly
-        system_tools = self._tools_from_funcs([get_db_schemas, text_2_sql])
+    #     # TODO: pass db client to db tools directly
+    #     system_tools = self._tools_from_funcs([get_db_schemas, text_2_sql])
 
-        tools = custom_tools + system_tools
+    #     tools = custom_tools + system_tools
 
-        index_store = IndexStore.get_instance()
+    #     index_store = IndexStore.get_instance()
 
-        vectorstore_object = ObjectIndex.from_objects(
-                tools,
-                index=index_store.get_all_indexes(),
-            )
-        tool_retriever = vectorstore_object.as_retriever(similarity_top_k=3)
-        tools = []  # Cannot specify both tools and tool_retriever
-        model = self.config.get("model", "model", "gpt-3.5-turbo")
-        if "gpt" in model:
-            self.__agent = OpenAILLM(tools, self.instruction, tool_retriever).agent
-        elif "claude" in model:
-            self.__agent = ClaudeLLM(tools, self.instruction, tool_retriever).agent
-        elif "llama" in model:
-            self.__agent = OllamaLLM(tools, self.instruction, tool_retriever).agent
-        elif "mixtral" or "mistral" in model:
-            self.__agent = MistralLLM(tools, self.instruction, tool_retriever).agent
-        else:
-            self.__agent = OpenAILLM(tools, self.instruction, tool_retriever).agent
+    #     vectorstore_object = ObjectIndex.from_objects(
+    #             tools,
+    #             index=index_store.get_all_indexes(),
+    #         )
+    #     tool_retriever = vectorstore_object.as_retriever(similarity_top_k=3)
+    #     tools = []  # Cannot specify both tools and tool_retriever
+    #     model = self.config.get("model", "model", "gpt-3.5-turbo")
+    #     if "gpt" in model:
+    #         self.__agent = OpenAILLM(tools, self.instruction, tool_retriever).agent
+    #     elif "claude" in model:
+    #         self.__agent = ClaudeLLM(tools, self.instruction, tool_retriever).agent
+    #     elif "llama" in model:
+    #         self.__agent = OllamaLLM(tools, self.instruction, tool_retriever).agent
+    #     elif "mixtral" or "mistral" in model:
+    #         self.__agent = MistralLLM(tools, self.instruction, tool_retriever).agent
+    #     else:
+    #         self.__agent = OpenAILLM(tools, self.instruction, tool_retriever).agent
+
+    

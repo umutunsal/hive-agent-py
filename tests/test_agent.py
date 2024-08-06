@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 from hive_agent.agent import HiveAgent
 from hive_agent.tools.retriever.base_retrieve import IndexStore
+from hive_agent.sdk_context import SDKContext
 
 @pytest.fixture
 def agent():
@@ -33,7 +34,8 @@ def agent():
             retrieve=True,
             required_exts=[".txt"],
             retrieval_tool="basic",
-            load_index_file = False
+            load_index_file = False,
+            sdk_context=SDKContext(config_path="./hive_config_test.toml")
         )
     return test_agent
 
@@ -81,7 +83,7 @@ def test_server_setup_exception(agent):
 
 
 def test_openai_agent_initialization_exception(agent):
-    with patch("hive_agent.agent.OpenAIAgent.from_tools") as mock_from_tools:
+    with patch("hive_agent.llms.openai.OpenAIAgent.from_tools") as mock_from_tools:
         mock_from_tools.side_effect = Exception("Failed to initialize OpenAI agent")
         with pytest.raises(Exception):
             agent._HiveAgent__setup()

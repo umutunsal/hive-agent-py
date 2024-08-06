@@ -1,6 +1,5 @@
 [model]
 model = "gpt-4-turbo-preview"
-ollama_server_url = "http://localhost:11434"
 
 [environment]
 type = "dev"
@@ -11,11 +10,14 @@ llm = 30
 [log]
 level = "INFO"
 
-[testagent]
+[pancake_agent]
 model = "gpt-4-turbo-preview"
 environment = "dev"
 timeout = 15
 log = "INFO"
 
-[test_agent]
-model = "new_model"
+[news_agent]
+model = "gpt-3.5-turbo"
+environment = "prod"
+timeout = 45
+log = "INFO"
